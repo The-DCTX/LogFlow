@@ -3,17 +3,29 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/settings.php';
 
-$os     = $_GET['os'] ?? '';
-$key_id = (int)($_GET['key'] ?? 0);
+$os    = $_GET['os'] ?? '';
+$token = $_GET['token'] ?? '';
 if (!in_array($os, ['linux','windows','macos'])) { http_response_code(400); exit('OS invalide'); }
+if ($token === '') { http_response_code(403); exit("Token d'installation requis"); }
 
-$db   = db();
-$stmt = $key_id
-    ? $db->prepare("SELECT api_key FROM api_keys WHERE id=?")
-    : $db->prepare("SELECT api_key FROM api_keys LIMIT 1");
-$key_id ? $stmt->execute([$key_id]) : $stmt->execute();
-$api_key = $stmt->fetchColumn();
+$db = db();
+// Le script (et la clé API qu'il embarque) n'est servi que contre un token
+// d'enrôlement valide, non révoqué et non expiré.
+$ts = $db->prepare("SELECT id, api_key_id FROM install_tokens
+                    WHERE token = ? AND revoked = 0
+                      AND (expires_at IS NULL OR expires_at > NOW())");
+$ts->execute([$token]);
+$tok = $ts->fetch();
+if (!$tok) { http_response_code(403); exit("Token d'installation invalide ou révoqué"); }
+
+$ak = $db->prepare($tok['api_key_id']
+    ? "SELECT api_key FROM api_keys WHERE id = ?"
+    : "SELECT api_key FROM api_keys ORDER BY id LIMIT 1");
+$tok['api_key_id'] ? $ak->execute([$tok['api_key_id']]) : $ak->execute();
+$api_key = $ak->fetchColumn();
 if (!$api_key) { http_response_code(404); exit('Clé API introuvable'); }
+
+$db->prepare("UPDATE install_tokens SET last_used = NOW() WHERE id = ?")->execute([$tok['id']]);
 
 $server_url = rtrim(get_setting('server_url', 'http://localhost'), '/');
 

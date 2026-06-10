@@ -98,3 +98,17 @@ CREATE TABLE IF NOT EXISTS severity_rules (
     PRIMARY KEY (id),
     INDEX idx_enabled (enabled, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tokens d'enrôlement requis pour télécharger un agent (agents/download.php)
+CREATE TABLE IF NOT EXISTS install_tokens (
+    id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    token      CHAR(64)     NOT NULL,
+    label      VARCHAR(120) NULL,
+    api_key_id INT UNSIGNED NULL,
+    created_at TIMESTAMP    NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME     NULL,
+    last_used  DATETIME     NULL,
+    revoked    TINYINT(1)   NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_token (token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

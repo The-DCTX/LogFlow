@@ -270,6 +270,34 @@ require_once __DIR__ . '/includes/header.php';
         </div>
         <?php endif; ?>
 
+        <!-- ── Tokens d'installation ─────────────────────────────── -->
+        <div class="p-3 mb-4 bg-dark rounded border border-secondary">
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <span class="fw-semibold"><i class="bi bi-key me-2"></i>Token d'installation</span>
+                <span class="text-muted small">requis pour télécharger un agent — révocable, n'expose jamais la clé API à un anonyme</span>
+            </div>
+            <div class="row g-2 align-items-end mb-2">
+                <div class="col-auto">
+                    <label class="form-label small text-muted mb-1">Libellé (optionnel)</label>
+                    <input id="tok-label" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="ex. serveurs-prod">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-info btn-sm" onclick="genToken()"><i class="bi bi-plus-lg me-1"></i>Générer</button>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label small text-muted mb-1">Token actif (utilisé dans les commandes)</label>
+                    <select id="token-selector" class="form-select form-select-sm bg-dark text-light border-secondary" onchange="updateCommands()"></select>
+                </div>
+            </div>
+            <div id="tok-fresh" class="alert alert-success py-2 px-3 small d-none mb-2"></div>
+            <div class="table-responsive">
+                <table class="table table-dark table-sm align-middle mb-0 small">
+                    <thead><tr><th>Libellé</th><th>Token</th><th>Créé</th><th>Dernier usage</th><th>État</th><th></th></tr></thead>
+                    <tbody id="tok-body"><tr><td colspan="6" class="text-muted text-center py-2">Chargement…</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- ── Sélection des catégories de logs ──────────────────── -->
         <div class="mb-4">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -328,7 +356,7 @@ require_once __DIR__ . '/includes/header.php';
                                     <i class="bi bi-copy me-1"></i>Copier
                                 </button>
                             </div>
-                            <pre class="mb-0 text-light small" id="linux-oneliner">curl -fsSL "<?= h($server_url) ?>/agents/download.php?os=linux&key=<?= $api_id ?>" | sudo bash</pre>
+                            <pre class="mb-0 text-light small" id="linux-oneliner">curl -fsSL "<?= h($server_url) ?>/agents/download.php?os=linux&token=GENEREZ_UN_TOKEN" | sudo bash</pre>
                         </div>
                         <p class="text-muted small mt-2 mb-0">
                             <i class="bi bi-info-circle me-1"></i>
@@ -336,7 +364,7 @@ require_once __DIR__ . '/includes/header.php';
                         </p>
                     </div>
                     <div class="col-12 d-flex gap-2 flex-wrap">
-                        <a href="agents/download.php?os=linux&key=<?= $api_id ?>" class="btn btn-outline-secondary btn-sm" id="linux-dl-btn" download>
+                        <a href="agents/download.php?os=linux&token=GENEREZ_UN_TOKEN" class="btn btn-outline-secondary btn-sm" id="linux-dl-btn" download>
                             <i class="bi bi-download me-1"></i>Télécharger le script
                         </a>
                         <button class="btn btn-sm btn-outline-secondary" onclick="previewScript('linux')">
@@ -380,7 +408,7 @@ journalctl -u logflow-agent -f</pre>
                                     <i class="bi bi-copy me-1"></i>Copier
                                 </button>
                             </div>
-                            <pre class="mb-0 text-light small" id="win-oneliner">irm "<?= h($server_url) ?>/agents/download.php?os=windows&key=<?= $api_id ?>" | iex</pre>
+                            <pre class="mb-0 text-light small" id="win-oneliner">irm "<?= h($server_url) ?>/agents/download.php?os=windows&token=GENEREZ_UN_TOKEN" | iex</pre>
                         </div>
                         <p class="text-muted small mt-2 mb-0">
                             <i class="bi bi-info-circle me-1"></i>
@@ -388,7 +416,7 @@ journalctl -u logflow-agent -f</pre>
                         </p>
                     </div>
                     <div class="col-12 d-flex gap-2 flex-wrap">
-                        <a href="agents/download.php?os=windows&key=<?= $api_id ?>" class="btn btn-outline-secondary btn-sm" id="win-dl-btn" download>
+                        <a href="agents/download.php?os=windows&token=GENEREZ_UN_TOKEN" class="btn btn-outline-secondary btn-sm" id="win-dl-btn" download>
                             <i class="bi bi-download me-1"></i>Télécharger le .ps1
                         </a>
                         <button class="btn btn-sm btn-outline-secondary" onclick="previewScript('windows')">
@@ -426,7 +454,7 @@ Get-Content "C:\ProgramData\LogFlow\logflow-agent.log" -Tail 20 -Wait</pre>
                                     <i class="bi bi-copy me-1"></i>Copier
                                 </button>
                             </div>
-                            <pre class="mb-0 text-light small" id="mac-oneliner">curl -fsSL "<?= h($server_url) ?>/agents/download.php?os=macos&key=<?= $api_id ?>" | sudo bash</pre>
+                            <pre class="mb-0 text-light small" id="mac-oneliner">curl -fsSL "<?= h($server_url) ?>/agents/download.php?os=macos&token=GENEREZ_UN_TOKEN" | sudo bash</pre>
                         </div>
                         <p class="text-muted small mt-2 mb-0">
                             <i class="bi bi-info-circle me-1"></i>
@@ -434,7 +462,7 @@ Get-Content "C:\ProgramData\LogFlow\logflow-agent.log" -Tail 20 -Wait</pre>
                         </p>
                     </div>
                     <div class="col-12 d-flex gap-2 flex-wrap">
-                        <a href="agents/download.php?os=macos&key=<?= $api_id ?>" class="btn btn-outline-secondary btn-sm" id="mac-dl-btn" download>
+                        <a href="agents/download.php?os=macos&token=GENEREZ_UN_TOKEN" class="btn btn-outline-secondary btn-sm" id="mac-dl-btn" download>
                             <i class="bi bi-download me-1"></i>Télécharger le script
                         </a>
                         <button class="btn btn-sm btn-outline-secondary" onclick="previewScript('macos')">
@@ -1254,37 +1282,44 @@ function getSelectedKey() {
 }
 
 // ── Mise à jour des commandes ─────────────────────────────────
+function activeToken() {
+    const sel = document.getElementById('token-selector');
+    return (sel && sel.value) ? sel.value : '';
+}
 function updateCommands() {
-    const {id, key} = getSelectedKey();
+    const {key} = getSelectedKey();
     const url = SERVER_URL;
     const el  = (i) => document.getElementById(i);
+    const tk  = activeToken();
 
     const lSrc = getSourcesParam('linux');
     const wSrc = getSourcesParam('windows');
     const mSrc = getSourcesParam('macos');
 
+    const noTok = "⚠️ Générez un token d'installation ci-dessus pour obtenir la commande.";
     if (el('linux-oneliner'))
-        el('linux-oneliner').textContent = `curl -fsSL "${url}/agents/download.php?os=linux&key=${id}&sources=${lSrc}" | sudo bash`;
+        el('linux-oneliner').textContent = tk ? `curl -fsSL "${url}/agents/download.php?os=linux&token=${tk}&sources=${lSrc}" | sudo bash` : noTok;
     if (el('win-oneliner'))
-        el('win-oneliner').textContent = `irm "${url}/agents/download.php?os=windows&key=${id}&sources=${wSrc}" | iex`;
+        el('win-oneliner').textContent = tk ? `irm "${url}/agents/download.php?os=windows&token=${tk}&sources=${wSrc}" | iex` : noTok;
     if (el('mac-oneliner'))
-        el('mac-oneliner').textContent = `curl -fsSL "${url}/agents/download.php?os=macos&key=${id}&sources=${mSrc}" | sudo bash`;
+        el('mac-oneliner').textContent = tk ? `curl -fsSL "${url}/agents/download.php?os=macos&token=${tk}&sources=${mSrc}" | sudo bash` : noTok;
     if (el('test-curl'))
         el('test-curl').textContent = `curl -X POST "${url}/api/receive.php" \\\n  -H "X-Api-Key: ${key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"host":"test-host","program":"test","severity":6,"message":"Test LogFlow OK","os":"linux"}'`;
 
-    if (el('linux-dl-btn')) el('linux-dl-btn').href = `agents/download.php?os=linux&key=${id}&sources=${lSrc}`;
-    if (el('win-dl-btn'))   el('win-dl-btn').href   = `agents/download.php?os=windows&key=${id}&sources=${wSrc}`;
-    if (el('mac-dl-btn'))   el('mac-dl-btn').href   = `agents/download.php?os=macos&key=${id}&sources=${mSrc}`;
+    if (el('linux-dl-btn')) el('linux-dl-btn').href = `agents/download.php?os=linux&token=${tk}&sources=${lSrc}`;
+    if (el('win-dl-btn'))   el('win-dl-btn').href   = `agents/download.php?os=windows&token=${tk}&sources=${wSrc}`;
+    if (el('mac-dl-btn'))   el('mac-dl-btn').href   = `agents/download.php?os=macos&token=${tk}&sources=${mSrc}`;
 }
 
 function previewScript(os) {
-    const {id} = getSelectedKey();
+    const tk = activeToken();
+    if (!tk) { toast("Générez un token d'installation d'abord"); return; }
     const src = getSourcesParam(os);
     const modal = new bootstrap.Modal(document.getElementById('scriptModal'));
     document.getElementById('scriptModalTitle').textContent = `Script ${os} — ${selectedSources[os].size} sources`;
     document.getElementById('scriptModalContent').textContent = 'Chargement…';
     modal.show();
-    fetch(`agents/download.php?os=${os}&key=${id}&sources=${src}`)
+    fetch(`agents/download.php?os=${os}&token=${tk}&sources=${src}`)
         .then(r => r.text())
         .then(t => { document.getElementById('scriptModalContent').textContent = t; });
 }
@@ -1361,8 +1396,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderCatGrid();
     ['linux','windows','macos'].forEach(os => renderSourceGrid(os));
+    loadTokens();
     updateCommands();
 });
+
+// ── Tokens d'installation ─────────────────────────────────────
+function escTok(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+async function loadTokens() {
+    const body = document.getElementById('tok-body');
+    const sel  = document.getElementById('token-selector');
+    if (!body || !sel) return;
+    try {
+        const d = await (await fetch('api/install-tokens.php')).json();
+        const prev = sel.value;
+        const list = d.tokens || [];
+        const active = list.filter(t => !parseInt(t.revoked));
+        sel.innerHTML = active.length ? '' : '<option value="">— aucun token actif —</option>';
+        active.forEach(t => {
+            const o = document.createElement('option');
+            o.value = t.token;
+            o.textContent = (t.label || 'token') + ' …' + t.token.slice(-6);
+            sel.appendChild(o);
+        });
+        if (prev) sel.value = prev;
+        if (!list.length) {
+            body.innerHTML = '<tr><td colspan="6" class="text-muted text-center py-2">Aucun token. Générez-en un.</td></tr>';
+        } else {
+            body.innerHTML = '';
+            list.forEach(t => {
+                const ok = !parseInt(t.revoked);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${escTok(t.label || '—')}</td>`
+                    + `<td class="font-monospace">…${escTok(t.token.slice(-8))}</td>`
+                    + `<td>${escTok(t.created_at || '')}</td>`
+                    + `<td>${escTok(t.last_used || '—')}</td>`
+                    + `<td>${ok ? '<span class="badge bg-success">actif</span>' : '<span class="badge bg-secondary">révoqué</span>'}</td>`
+                    + `<td>${ok ? `<button class="btn btn-sm btn-outline-danger border-0 py-0" onclick="revokeToken(${parseInt(t.id)})"><i class="bi bi-x-lg"></i></button>` : ''}</td>`;
+                body.appendChild(tr);
+            });
+        }
+        updateCommands();
+    } catch (e) {}
+}
+async function genToken() {
+    const label = (document.getElementById('tok-label') || {}).value || '';
+    const keyId = getSelectedKey().id;
+    const d = await (await fetch('api/install-tokens.php', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({label, api_key_id: keyId})})).json();
+    if (!d.ok) { toast('Erreur lors de la création du token'); return; }
+    await loadTokens();
+    const sel = document.getElementById('token-selector');
+    if (sel) sel.value = d.token;
+    const fresh = document.getElementById('tok-fresh');
+    if (fresh) { fresh.classList.remove('d-none'); fresh.innerHTML = "Token créé — il pilote les commandes ci-dessous : <code>" + escTok(d.token) + "</code>"; }
+    updateCommands();
+}
+async function revokeToken(id) {
+    if (!confirm("Révoquer ce token ? Les commandes qui l'utilisent cesseront de fonctionner.")) return;
+    await fetch('api/install-tokens.php', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({action:'revoke', id})});
+    await loadTokens();
+}
 </script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

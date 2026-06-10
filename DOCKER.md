@@ -47,6 +47,7 @@ Ou videz simplement la table : `TRUNCATE TABLE logs;`
 
 ## Envoyer de vrais logs
 
-Récupérez la clé API générée (Setup → onglet correspondant), puis installez
-un agent depuis la page **Setup** de l'instance, ou via l'API `POST /api/receive.php`
+Depuis la page **Setup**, générez un **token d'installation**, puis copiez la
+commande d'agent proposée (elle utilise ce token, jamais la clé API en clair).
+Les logs peuvent aussi être envoyés directement à `POST /api/receive.php`
 (en-tête `X-Api-Key`).

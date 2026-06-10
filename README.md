@@ -63,12 +63,16 @@ voir `docker/apache-logflow.conf` pour un exemple).
 
 ## 🖥️ Déployer un agent
 
-Depuis la page **Setup**, choisissez l'OS et les sources : LogFlow génère une
-commande d'installation prête à coller. Exemple Linux :
+Depuis la page **Setup**, générez un **token d'installation** (révocable), puis
+choisissez l'OS et les sources : LogFlow génère une commande prête à coller.
+Exemple Linux :
 
 ```bash
-curl -fsSL "http://<serveur>:8085/agents/download.php?os=linux&key=1&sources=auth_log,secure,ufw" | sudo bash
+curl -fsSL "http://<serveur>:8085/agents/download.php?os=linux&token=VOTRE_TOKEN&sources=auth_log,secure,ufw" | sudo bash
 ```
+
+> 🔐 Le token d'enrôlement protège la clé API : `download.php` ne sert jamais
+> d'agent sans un token valide, et chaque token est révocable depuis _Setup_.
 
 Les logs peuvent aussi être envoyés directement à `POST /api/receive.php`
 (en-tête `X-Api-Key`).
