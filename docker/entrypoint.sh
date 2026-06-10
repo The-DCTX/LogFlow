@@ -20,6 +20,9 @@ until php -r '
 done
 echo "LogFlow : base de données prête."
 
+# Applique les migrations de schéma en attente (idempotent, voir migrations/)
+php /var/www/html/migrate.php || { echo "LogFlow : migration échouée, arrêt."; exit 1; }
+
 # Initialise les réglages issus de l'environnement (ex. SERVER_URL) au 1er démarrage
 php /var/www/html/docker/init-config.php || true
 

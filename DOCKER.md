@@ -50,11 +50,11 @@ docker compose pull && docker compose up -d
 docker compose up -d --build
 ```
 
-> ⚠️ Les évolutions du **schéma** de base ne sont pas rejouées automatiquement
-> (le volume existe déjà). Appliquez la migration à la main :
-> ```bash
-> docker compose exec -T db mariadb -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < migration.sql
-> ```
+> Les évolutions du **schéma** sont appliquées **automatiquement au démarrage**
+> du conteneur (`migrate.php` + dossier `migrations/`, tracées dans la table
+> `schema_migrations`). Un simple `docker compose pull && docker compose up -d`
+> met à jour le **code et le schéma** sans perte de données.
+> Pour ajouter une évolution : voir [`migrations/README.md`](migrations/README.md).
 
 ## Repartir d'une base vierge (sans démo)
 
