@@ -3,6 +3,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/settings.php';
 require_once __DIR__ . '/../includes/discord.php';
+require_once __DIR__ . '/../includes/auth.php';
 
 header('Content-Type: application/json');
 
@@ -14,6 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $webhook = trim($_POST['webhook'] ?? get_setting('discord_webhook_url', ''));
 if (empty($webhook)) {
     echo json_encode(['ok' => false, 'error' => 'URL webhook vide']);
+    exit;
+}
+$wh_host = parse_url($webhook, PHP_URL_HOST) ?: '';
+if (strcasecmp($wh_host, 'discord.com') !== 0 && strcasecmp($wh_host, 'discordapp.com') !== 0
+    && !preg_match('/\\.discord(app)?\\.com$/i', $wh_host)) {
+    echo json_encode(['ok' => false, 'error' => 'URL webhook invalide : hôte Discord requis']);
     exit;
 }
 

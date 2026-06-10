@@ -10,7 +10,7 @@ if (!empty($_SESSION['logflow_user'])) { header('Location: /index.php'); exit; }
 $error    = '';
 $raw_next = $_GET['next'] ?? '/index.php';
 $next     = filter_var($raw_next, FILTER_SANITIZE_URL);
-if (!$next || !str_starts_with($next, '/')) $next = '/index.php';
+if (!$next || !str_starts_with($next, '/') || str_starts_with($next, '//') || str_starts_with($next, '/\\')) $next = '/index.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
