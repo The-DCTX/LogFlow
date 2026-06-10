@@ -1,0 +1,12 @@
+.git
+.github
+*.bak
+*.bak.*
+*.bak2.*
+config.php
+CLAUDE.md
+AGENTS.md
+.claude
+.env
+*.log
+db_data

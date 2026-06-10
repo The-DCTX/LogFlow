@@ -1,0 +1,16 @@
+[Unit]
+Description=LogFlow Security Agent
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/logflow-agent
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=logflow-agent
+
+[Install]
+WantedBy=multi-user.target

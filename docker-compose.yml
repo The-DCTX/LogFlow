@@ -1,0 +1,39 @@
+# LogFlow — pile complète en une commande :
+#   cp .env.example .env   &&   docker compose up -d
+# Puis ouvrez http://localhost:8085  (login par défaut : admin / logflow2026)
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-change_me_root}
+      MARIADB_DATABASE: ${DB_NAME:-logflow}
+      MARIADB_USER: ${DB_USER:-logflow}
+      MARIADB_PASSWORD: ${DB_PASS:-change_me_logflow}
+    volumes:
+      - db_data:/var/lib/mysql
+      # Schéma chargé à la première création du volume, puis le jeu de démo
+      - ./install.sql:/docker-entrypoint-initdb.d/01-install.sql:ro
+      - ./db/demo-data.sql:/docker-entrypoint-initdb.d/02-demo-data.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-logflow}
+      DB_USER: ${DB_USER:-logflow}
+      DB_PASS: ${DB_PASS:-change_me_logflow}
+    ports:
+      - "${APP_PORT:-8085}:80"
+
+volumes:
+  db_data:

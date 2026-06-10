@@ -1,0 +1,30 @@
+# ── Secrets & configuration locale ───────────────────────────────
+config.php
+
+# ── Mémoire de dev interne (credentials, IP, notes privées) ───────
+# Ne JAMAIS publier : contient mots de passe, clé API, IP internes.
+CLAUDE.md
+AGENTS.md
+.claude/
+
+# ── Backups & fichiers temporaires ───────────────────────────────
+*.bak
+*.bak.*
+*.bak2.*
+*~
+*.swp
+*.orig
+
+# ── Fichiers de debug / test ad hoc ──────────────────────────────
+test_*.php
+debug_*.php
+
+# ── Logs runtime ─────────────────────────────────────────────────
+*.log
+logs/
+
+# ── OS / éditeurs ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
