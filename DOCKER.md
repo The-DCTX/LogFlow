@@ -36,6 +36,26 @@ Tout passe par `.env` :
 | `MARIADB_ROOT_PASSWORD` | — | Mot de passe root MariaDB |
 | `SERVER_URL` | `http://localhost:8085` | URL publique utilisée par les agents ; injectée au 1er démarrage (ne remplace pas une valeur changée ensuite dans Setup) |
 
+## Mise à jour
+
+**Image pré-construite (recommandé)** — aucune compilation locale :
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+**Build local** (fork / développement) :
+
+```bash
+docker compose up -d --build
+```
+
+> ⚠️ Les évolutions du **schéma** de base ne sont pas rejouées automatiquement
+> (le volume existe déjà). Appliquez la migration à la main :
+> ```bash
+> docker compose exec -T db mariadb -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < migration.sql
+> ```
+
 ## Repartir d'une base vierge (sans démo)
 
 ```bash
