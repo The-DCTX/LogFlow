@@ -34,6 +34,7 @@ Tout passe par `.env` :
 | `APP_PORT` | `8085` | Port HTTP exposé sur l'hôte |
 | `DB_NAME` / `DB_USER` / `DB_PASS` | `logflow` | Identifiants MariaDB de l'app |
 | `MARIADB_ROOT_PASSWORD` | — | Mot de passe root MariaDB |
+| `SERVER_URL` | `http://localhost:8085` | URL publique utilisée par les agents ; injectée au 1er démarrage (ne remplace pas une valeur changée ensuite dans Setup) |
 
 ## Repartir d'une base vierge (sans démo)
 

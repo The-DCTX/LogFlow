@@ -20,4 +20,7 @@ until php -r '
 done
 echo "LogFlow : base de données prête."
 
+# Initialise les réglages issus de l'environnement (ex. SERVER_URL) au 1er démarrage
+php /var/www/html/docker/init-config.php || true
+
 exec "$@"

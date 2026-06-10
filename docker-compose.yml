@@ -33,6 +33,7 @@ services:
       DB_NAME: ${DB_NAME:-logflow}
       DB_USER: ${DB_USER:-logflow}
       DB_PASS: ${DB_PASS:-change_me_logflow}
+      SERVER_URL: ${SERVER_URL:-}
     ports:
       - "${APP_PORT:-8085}:80"
 
