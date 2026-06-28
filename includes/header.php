@@ -1,3 +1,4 @@
+<?php require_once __DIR__ . '/csrf.php'; ?>
 <!DOCTYPE html>
 <html lang="fr" data-bs-theme="dark">
 <head>
@@ -7,6 +8,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/assets/css/app.css">
+    <meta name="csrf-token" content="<?= h(csrf_token()) ?>">
+    <script>window.CSRF = <?= json_encode(csrf_token()) ?>;</script>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary">
@@ -21,8 +24,23 @@
             <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'logs.php' ? 'active' : '' ?>" href="/logs.php">
                 <i class="bi bi-list-ul me-1"></i>Logs
             </a>
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'syslog.php' ? 'active' : '' ?>" href="/syslog.php">
+                <i class="bi bi-hdd-network me-1"></i>Syslog
+            </a>
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'agents.php' ? 'active' : '' ?>" href="/agents.php">
+                <i class="bi bi-robot me-1"></i>Agents
+            </a>
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'templates.php' ? 'active' : '' ?>" href="/templates.php">
+                <i class="bi bi-mortarboard me-1"></i>Apprentissage
+            </a>
             <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'security.php' ? 'active' : '' ?>" href="/security.php">
                 <i class="bi bi-shield-lock me-1"></i>Sécurité
+            </a>
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'anomalies.php' ? 'active' : '' ?>" href="/anomalies.php">
+                <i class="bi bi-activity me-1"></i>Anomalies
+            </a>
+            <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'cve.php' ? 'active' : '' ?>" href="/cve.php">
+                <i class="bi bi-bug me-1"></i>CVE
             </a>
             <a class="nav-link <?= basename($_SERVER['PHP_SELF']) === 'severity.php' ? 'active' : '' ?>" href="/severity.php">
                 <i class="bi bi-sliders me-1"></i>Sévérité

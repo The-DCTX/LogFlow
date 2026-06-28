@@ -6,3 +6,7 @@ if (empty($_SESSION['logflow_user'])) {
     header('Location: /login.php?next=' . urlencode($_SERVER['REQUEST_URI'] ?? '/'));
     exit;
 }
+
+// Garantit qu'un token CSRF existe en session (exposé aux pages, vérifié par les API).
+require_once __DIR__ . '/csrf.php';
+csrf_token();
