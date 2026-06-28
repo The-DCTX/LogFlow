@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
+require_once __DIR__ . '/../includes/devices.php';
 require_once __DIR__ . '/../includes/auth.php';
 
 header('Content-Type: application/json');
@@ -8,7 +9,9 @@ header('Content-Type: application/json');
 $db = db();
 
 $host     = trim($_GET['host'] ?? '');
+$src_ip   = trim($_GET['source_ip'] ?? '');
 $severity = $_GET['severity'] ?? '';
+$facility = $_GET['facility'] ?? '';
 $program  = trim($_GET['program'] ?? '');
 $search   = trim($_GET['search'] ?? '');
 $os       = trim($_GET['os'] ?? '');
@@ -22,8 +25,12 @@ $offset   = ($page - 1) * $limit;
 $where = ['1=1'];
 $params = [];
 
+$sev_max  = $_GET['sev_max'] ?? '';
 if ($host !== '') { $where[] = 'host = ?'; $params[] = $host; }
-if ($severity !== '' && ctype_digit($severity)) { $where[] = 'severity = ?'; $params[] = (int)$severity; }
+if ($src_ip !== '') { $where[] = 'source_ip = ?'; $params[] = $src_ip; }
+if ($severity !== '' && ctype_digit((string)$severity)) { $where[] = 'severity = ?'; $params[] = (int)$severity; }
+if ($sev_max !== '' && ctype_digit((string)$sev_max)) { $where[] = 'severity <= ?'; $params[] = (int)$sev_max; }
+if ($facility !== '' && ctype_digit((string)$facility)) { $where[] = 'facility = ?'; $params[] = (int)$facility; }
 if ($os !== '') { $where[] = 'os = ?'; $params[] = $os; }
 if ($program !== '') { $where[] = 'program LIKE ?'; $params[] = '%' . $program . '%'; }
 if ($search !== '') {
@@ -48,8 +55,18 @@ $logsStmt = $db->prepare("SELECT * FROM logs WHERE {$whereStr} ORDER BY received
 $logsStmt->execute($params);
 $logs = $logsStmt->fetchAll();
 
-// Hosts avec counts (pour sidebar)
-$hostsRaw = $db->query("SELECT host, COUNT(*) as cnt, MAX(received_at) as last_seen FROM logs GROUP BY host ORDER BY cnt DESC")->fetchAll();
+// Nom convivial de l'appareil (host/IP → nom enregistré, sinon le host brut)
+foreach ($logs as &$l) {
+    $l['device'] = device_name($l['host'] ?? '', $l['source_ip'] ?? '');
+}
+unset($l);
+
+// Hosts avec counts (pour sidebar) + nom convivial (résolu via host ET IP source)
+$hostsRaw = $db->query("SELECT host, MAX(source_ip) as source_ip, COUNT(*) as cnt, MAX(received_at) as last_seen FROM logs GROUP BY host ORDER BY cnt DESC")->fetchAll();
+foreach ($hostsRaw as &$hrow) {
+    $hrow['device'] = device_name($hrow['host'] ?? '', $hrow['source_ip'] ?? '');
+}
+unset($hrow);
 
 echo json_encode([
     'total'   => $total,

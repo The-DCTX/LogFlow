@@ -37,8 +37,12 @@ services:
       DB_USER: ${DB_USER:-logflow}
       DB_PASS: ${DB_PASS:-change_me_logflow}
       SERVER_URL: ${SERVER_URL:-}
+      SYSLOG_PROTO: both
     ports:
       - "${APP_PORT:-8085}:80"
+      # Récepteur syslog (Synology/NAS). Pointez le Log Center du NAS sur ce port.
+      - "${SYSLOG_PORT:-1514}:1514/udp"
+      - "${SYSLOG_PORT:-1514}:1514/tcp"
 
 volumes:
   db_data:
