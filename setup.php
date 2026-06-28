@@ -89,6 +89,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['retention_settings'])
 }
 $retention_saved = isset($_GET['retention_saved']);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tls_settings'])) {
+    set_setting('syslog_tls_enabled', isset($_POST['syslog_tls_enabled']) ? '1' : '0');
+    set_setting('syslog_tls_port',    (string)max(1, (int)($_POST['syslog_tls_port'] ?? 6514)));
+    set_setting('syslog_tls_cert',    trim($_POST['syslog_tls_cert'] ?? ''));
+    set_setting('syslog_tls_key',     trim($_POST['syslog_tls_key'] ?? ''));
+    session_write_close();
+    header('Location: setup.php?tls_saved=1#tab-syslog');
+    exit;
+}
+$tls_saved = isset($_GET['tls_saved']);
+
 // ── Données ────────────────────────────────────────────────────
 $server_url  = get_setting('server_url', 'http://YOUR_SERVER_IP');
 $server_name = get_setting('server_name', APP_NAME);
@@ -108,7 +119,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_key'])) {
     exit;
 }
 if (isset($_GET['del_key']) && is_numeric($_GET['del_key']) && count($keys) > 1) {
-    $db->prepare("DELETE FROM api_keys WHERE id=?")->execute([(int)$_GET['del_key']]);
+    // Suppression sécurisée : purge d'abord les tokens d'enrôlement liés à cette clé
+    // (sinon ils resteraient non-révoqués et réutilisables), puis la clé elle-même.
+    $del_id = (int)$_GET['del_key'];
+    $db->beginTransaction();
+    try {
+        $db->prepare("DELETE FROM install_tokens WHERE api_key_id=?")->execute([$del_id]);
+        $db->prepare("DELETE FROM api_keys WHERE id=?")->execute([$del_id]);
+        $db->commit();
+    } catch (\Throwable $e) { $db->rollBack(); }
     header('Location: setup.php#apikeys');
     exit;
 }
@@ -337,6 +356,11 @@ require_once __DIR__ . '/includes/header.php';
                 </button>
             </li>
             <li class="nav-item">
+                <button class="nav-link d-flex align-items-center gap-2" data-bs-toggle="tab" data-bs-target="#tab-syslog">
+                    <i class="bi bi-hdd-stack"></i>Synology / NAS
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link d-flex align-items-center gap-2" data-bs-toggle="tab" data-bs-target="#tab-rsyslog">
                     <i class="bi bi-hdd-network"></i>rsyslog
                 </button>
@@ -487,6 +511,95 @@ Get-Content "C:\ProgramData\LogFlow\logflow-agent.log" -Tail 20 -Wait</pre>
                 <h6 class="text-muted">Vérifier l'installation</h6>
                 <pre class="bg-dark border border-secondary rounded p-2 small text-success">sudo launchctl list | grep logflow
 tail -f /var/log/logflow-agent.log</pre>
+            </div>
+
+            <!-- ─── Synology / NAS (syslog réseau) ─────────── -->
+            <?php
+            $syslog_port  = (int)get_setting('syslog_listen_port', '1514');
+            $syslog_proto = strtoupper(get_setting('syslog_listen_proto', 'udp'));
+            $srv_host = parse_url(get_setting('server_url', ''), PHP_URL_HOST) ?: ($_SERVER['SERVER_ADDR'] ?? $_SERVER['HTTP_HOST'] ?? 'IP_DU_SERVEUR');
+            ?>
+            <div class="tab-pane fade" id="tab-syslog">
+                <p class="text-muted mb-3">
+                    Les NAS <strong>Synology</strong> (et tout équipement réseau : routeurs, pare-feux, switches…)
+                    envoient leurs journaux en <strong>syslog standard</strong> vers le récepteur intégré de LogFlow.
+                    Aucun agent à installer — la configuration se fait côté appareil.
+                    Les hôtes détectés apparaissent ensuite dans l'onglet <a href="/syslog.php">Syslog</a> où vous leur donnez un nom.
+                </p>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <h6 class="text-info">1. Activer le récepteur syslog sur le serveur LogFlow</h6>
+                        <p class="text-muted small mb-1">Installation classique (systemd) :</p>
+                        <pre class="bg-dark border border-secondary rounded p-2 small text-light">sudo cp /var/www/logflow/agents/logflow-syslogd.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now logflow-syslogd
+# Écoute par défaut : <?= $syslog_proto ?>/<?= $syslog_port ?> (port &gt;1024, sans privilège)</pre>
+                        <p class="text-muted small mb-1 mt-2">Déploiement Docker : le récepteur démarre automatiquement (port <?= $syslog_port ?> exposé).</p>
+                    </div>
+                    <div class="col-12">
+                        <h6 class="text-info">2. Configurer le Log Center du Synology</h6>
+                        <p class="text-muted small mb-1">DSM → <em>Centre de journaux</em> → <em>Envoi de journaux</em> → cocher « Envoyer les journaux à un serveur syslog » :</p>
+                        <pre class="bg-dark border border-secondary rounded p-2 small text-light">Serveur       : <?= h($srv_host) ?>
+
+Port          : <?= $syslog_port ?>
+
+Protocole     : <?= $syslog_proto ?>
+
+Format        : BSD (RFC 3164)   ← ou IETF (RFC 5424), les deux sont supportés</pre>
+                    </div>
+                    <div class="col-12">
+                        <h6 class="text-info">3. Vérifier</h6>
+                        <pre class="bg-dark border border-secondary rounded p-2 small text-success">sudo systemctl status logflow-syslogd
+sudo journalctl -u logflow-syslogd -f</pre>
+                        <p class="text-muted small">Générez un événement sur le NAS (connexion, etc.) puis ouvrez l'onglet
+                            <a href="/syslog.php">Syslog</a> : l'hôte apparaît dans « non reconnus », cliquez <em>Nommer</em>.</p>
+                    </div>
+                </div>
+
+                <!-- ─── Syslog chiffré (TLS) ─── -->
+                <?php
+                $tls_en   = (int) get_setting('syslog_tls_enabled', '0');
+                $tls_port = (int) get_setting('syslog_tls_port', '6514');
+                $tls_cert = get_setting('syslog_tls_cert', '');
+                $tls_key  = get_setting('syslog_tls_key', '');
+                ?>
+                <hr class="border-secondary my-4">
+                <h6 class="text-info mb-2"><i class="bi bi-lock me-1"></i>Syslog chiffré (TLS — optionnel)</h6>
+                <p class="text-muted small mb-3">Chiffre les logs en transit (RFC 5425). Active la case « connexion
+                    sécurisée (SSL) » du Log Center. Le récepteur UDP/TCP en clair continue de fonctionner en parallèle.</p>
+                <?php if ($tls_saved): ?><div class="alert alert-success py-2 small">Réglages TLS enregistrés — redémarrez <code>logflow-syslogd</code>.</div><?php endif; ?>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <p class="text-muted small mb-1">1. Générer un certificat auto-signé sur le serveur :</p>
+                        <pre class="bg-dark border border-secondary rounded p-2 small text-light">sudo openssl req -x509 -newkey rsa:2048 -nodes -days 3650 \
+  -keyout /etc/logflow/syslog-tls.key -out /etc/logflow/syslog-tls.crt \
+  -subj "/CN=<?= h(parse_url(get_setting('server_url',''), PHP_URL_HOST) ?: 'YOUR_SERVER_IP') ?>"
+sudo chown www-data:www-data /etc/logflow/syslog-tls.*  &&  sudo chmod 600 /etc/logflow/syslog-tls.key</pre>
+                    </div>
+                    <div class="col-12">
+                        <p class="text-muted small mb-1">2. Activer et indiquer les chemins :</p>
+                        <form method="post" class="row g-2 align-items-end">
+                            <input type="hidden" name="tls_settings" value="1">
+                            <div class="col-auto">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" name="syslog_tls_enabled" id="tlsen" <?= $tls_en?'checked':'' ?>>
+                                    <label class="form-check-label small" for="tlsen">Activer TLS</label>
+                                </div>
+                            </div>
+                            <div class="col-auto"><label class="form-label small text-muted mb-0">Port</label>
+                                <input name="syslog_tls_port" value="<?= $tls_port ?>" class="form-control form-control-sm bg-dark text-light border-secondary" style="width:90px"></div>
+                            <div class="col"><label class="form-label small text-muted mb-0">Certificat (.crt PEM)</label>
+                                <input name="syslog_tls_cert" value="<?= h($tls_cert) ?>" placeholder="/etc/logflow/syslog-tls.crt" class="form-control form-control-sm bg-dark text-light border-secondary mono"></div>
+                            <div class="col"><label class="form-label small text-muted mb-0">Clé privée (.key PEM)</label>
+                                <input name="syslog_tls_key" value="<?= h($tls_key) ?>" placeholder="/etc/logflow/syslog-tls.key" class="form-control form-control-sm bg-dark text-light border-secondary mono"></div>
+                            <div class="col-auto"><button class="btn btn-info btn-sm">Enregistrer</button></div>
+                        </form>
+                        <p class="text-muted small mt-1">Puis : <code>sudo systemctl restart logflow-syslogd</code> (ouvre le port <?= $tls_port ?> en TLS).</p>
+                    </div>
+                    <div class="col-12">
+                        <p class="text-muted small mb-1">3. Sur le Synology : cocher « Activer la connexion sécurisée (SSL) », port <strong><?= $tls_port ?></strong>, et importer le <code>.crt</code> ci-dessus.</p>
+                    </div>
+                </div>
             </div>
 
             <!-- ─── rsyslog ────────────────────────────────── -->

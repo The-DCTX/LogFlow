@@ -2,8 +2,21 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/cve.php';
 require_once __DIR__ . '/includes/auth.php';
 $pageTitle = APP_NAME . ' — Logs';
+
+// Métadonnées CVE (pour les chips : libellé, niveau, couleur, remédiation).
+$cveMeta = [];
+try {
+    foreach (db()->query("SELECT cve_id, name, cvss, remediation, reference_url FROM cve_signatures")->fetchAll() as $s) {
+        [$lvl, $col] = cvss_meta((float)$s['cvss']);
+        $cveMeta[$s['cve_id']] = [
+            'name' => $s['name'], 'cvss' => (float)$s['cvss'], 'level' => $lvl, 'color' => $col,
+            'remediation' => $s['remediation'], 'url' => $s['reference_url'],
+        ];
+    }
+} catch (\Throwable $e) {}
 ?><!DOCTYPE html>
 <html lang="fr" data-bs-theme="dark">
 <head>
@@ -217,6 +230,8 @@ $pageTitle = APP_NAME . ' — Logs';
     .sh-os   { width: 16px; flex-shrink:0 }
     .sh-meta { flex:1 }
     .sh-msg  { color: var(--text-dim); }
+    .cve-chip { display:inline-block; margin-left:6px; padding:0 6px; font-size:10px; font-weight:700;
+        border:1px solid; border-radius:4px; cursor:help; vertical-align:middle; }
     </style>
 </head>
 <body class="spa">
@@ -378,6 +393,15 @@ const SEVERITIES  = <?= json_encode(SEVERITIES) ?>;
 const SEV_COLORS  = ['#f85149','#f85149','#f85149','#f0883e','#d29922','#58a6ff','#3fb950','#8b949e'];
 const SEV_SHORT   = ['EMRG','ALRT','CRIT','ERR','WARN','NOTC','INFO','DBG'];
 const SEV_FULL    = ['Emergency','Alert','Critical','Error','Warning','Notice','Info','Debug'];
+const CVE_META    = <?= json_encode($cveMeta) ?>;
+function cveChip(cve) {
+    if (!cve) return '';
+    const m = CVE_META[cve];
+    const color = m ? m.color : 'var(--red)';
+    const title = m ? (m.name + ' · CVSS ' + m.cvss + ' (' + m.level + ')\nRemédiation : ' + m.remediation)
+                    : (cve + ' — tentative d\'exploitation');
+    return `<span class="cve-chip" style="border-color:${color};color:${color}" title="${escHtml(title)}">🧨 ${escHtml(cve)}</span>`;
+}
 const OS_ICONS    = {linux:'🐧', windows:'🪟', macos:'🍎', other:'💻'};
 
 let state = {
@@ -486,9 +510,10 @@ function renderLogs(logs, total) {
         <span class="log-sep">│</span>
         <span class="log-os" title="${escHtml(log.os)}">${osIco}</span>
         <div class="log-meta-tags">
-            <span class="tag tag-host" onclick="filterHost('${escHtml(log.host)}',event)">${escHtml(log.host)}</span>
+            <span class="tag tag-host" onclick="filterHost('${escHtml(log.host)}',event)" title="${escHtml(log.host)}">${escHtml(log.device || log.host)}</span>
             <span class="log-sep" style="opacity:.4">›</span>
             <span class="tag tag-program" onclick="filterProgram('${escHtml(log.program)}',event)">${escHtml(log.program) || '—'}</span>
+            ${cveChip(log.cve)}
         </div>
     </div>
     <div class="log-row-msg">${msg}</div>
@@ -519,7 +544,7 @@ function toggleExpand(row, idx) {
     // Champs : [key, value, colorStyle?] — pas de HTML brut, escHtml sur toutes les valeurs
     const fields = [
         ['timestamp', log.received_at],
-        ['host',      log.host],
+        ['host',      (log.device && log.device !== log.host) ? (log.device + ' · ' + log.host) : log.host],
         ['source_ip', log.source_ip || '—'],
         ['os',        (OS_ICONS[log.os] || '') + ' ' + (log.os || '—')],
         ['severity',  (SEV_FULL[sev] ?? String(sev)) + ' (' + sev + ')', SEV_COLORS[sev]],
@@ -607,7 +632,7 @@ function renderHosts(hosts, total) {
         const color    = palette[i % palette.length];
         div.innerHTML  = `
             <div class="host-dot" style="background:${color}"></div>
-            <span class="host-name" title="${escHtml(h.host)}">${escHtml(h.host)}</span>
+            <span class="host-name" title="${escHtml(h.host)}">${escHtml(h.device || h.host)}</span>
             <span class="host-count">${Number(h.cnt).toLocaleString('fr')}</span>`;
         div.addEventListener('click', () => {
             state.host = state.host === h.host ? '' : h.host;

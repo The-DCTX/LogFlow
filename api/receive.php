@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../includes/cve.php';
 require_once __DIR__ . '/../includes/discord.php';
 require_once __DIR__ . '/../includes/email.php';
 
@@ -55,11 +56,20 @@ foreach (array_slice($logs, 0, 500) as $log) {
     $os       = in_array($log['os'] ?? '', ['linux','windows','macos','other']) ? $log['os'] : null;
     $host     = substr($log['host'] ?? $source_ip, 0, 255);
 
-    $sec       = detect_sec_event($message, $program);
-    $sec_event = $sec ? $sec['event'] : null;
-    if ($sec && $sec['severity'] !== null) $severity = $sec['severity'];
+    // CVE prioritaire (exploitation), sinon détection d'événement de sécurité.
+    $cve_id = null;
+    $cve = detect_cve($message, $program);
+    if ($cve) {
+        $cve_id    = $cve['cve_id'];
+        $sec_event = 'exploit_attempt';
+        $severity  = cve_severity($cve['cvss']);
+    } else {
+        $sec       = detect_sec_event($message, $program);
+        $sec_event = $sec ? $sec['event'] : null;
+        if ($sec && $sec['severity'] !== null) $severity = $sec['severity'];
+    }
 
-    // Valeurs positionnelles pour l'INSERT multi-lignes (10 params par ligne, 'http' est littéral SQL)
+    // Valeurs positionnelles pour l'INSERT multi-lignes (11 params par ligne, 'http' est littéral SQL)
     $rows[] = [
         !empty($log['time']) ? date('Y-m-d H:i:s', strtotime($log['time'])) : null,
         $host,
@@ -71,6 +81,7 @@ foreach (array_slice($logs, 0, 500) as $log) {
         $message,
         $os,
         $sec_event,
+        $cve_id,
     ];
     $discord[] = [
         'host'      => $host,
@@ -85,8 +96,8 @@ foreach (array_slice($logs, 0, 500) as $log) {
 
 // ── INSERT multi-valeurs en transaction unique ─────────────────
 if (!empty($rows)) {
-    $ph  = implode(',', array_fill(0, count($rows), "(?,?,?,?,?,?,?,?,'http',?,?)"));
-    $sql = "INSERT INTO logs (log_time,host,source_ip,facility,severity,program,pid,message,source,os,sec_event) VALUES $ph";
+    $ph  = implode(',', array_fill(0, count($rows), "(?,?,?,?,?,?,?,?,'http',?,?,?)"));
+    $sql = "INSERT INTO logs (log_time,host,source_ip,facility,severity,program,pid,message,source,os,sec_event,cve) VALUES $ph";
     $db->beginTransaction();
     try {
         $db->prepare($sql)->execute(array_merge(...$rows));
