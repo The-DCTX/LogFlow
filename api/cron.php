@@ -7,6 +7,8 @@ require_once 'config.php';
 require_once 'includes/db.php';
 require_once 'includes/settings.php';
 require_once 'includes/discord.php';
+require_once 'includes/templating.php';
+require_once 'includes/anomalies.php';
 
 $db        = db();
 $retention = (int)get_setting('log_retention_days', (string)MAX_LOG_AGE_DAYS);
@@ -22,5 +24,23 @@ if ($retention > 0) {
 
 // Traite les notifications Discord en attente
 process_discord_queue(50);
+
+// Apprentissage du parser (hors chemin d'ingestion) — borné, idempotent (filigrane).
+try {
+    $lt = learn_templates(20000);
+    if (($lt['processed'] ?? 0) > 0) {
+        echo date('Y-m-d H:i:s') . " — Apprentissage: {$lt['processed']} logs analysés, {$lt['templates']} gabarit(s)\n";
+    }
+} catch (\Throwable $e) {
+    echo date('Y-m-d H:i:s') . " — Apprentissage ÉCHEC: " . $e->getMessage() . "\n";
+}
+
+// Détection d'anomalies (brute-force, silence, nouvel hôte) — hors ingestion.
+try {
+    $an = detect_anomalies();
+    if ($an) echo date('Y-m-d H:i:s') . " — Anomalies: " . count($an) . " nouvelle(s) — " . implode(', ', $an) . "\n";
+} catch (\Throwable $e) {
+    echo date('Y-m-d H:i:s') . " — Anomalies ÉCHEC: " . $e->getMessage() . "\n";
+}
 
 echo date('Y-m-d H:i:s') . " — Cron OK\n";

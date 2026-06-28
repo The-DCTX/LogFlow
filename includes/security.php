@@ -1,10 +1,20 @@
 <?php
+require_once __DIR__ . '/db.php';   // active_parse_rules() consulte la base
 /*
  * Détection automatique des événements de sécurité.
  * Retourne ['event' => string, 'severity' => int] ou null.
  */
 
 const SEC_EVENTS = [
+
+    // ── Exploitation de vulnérabilité (CVE) ──────────────────
+    'exploit_attempt' => [
+        'label'    => 'Exploitation (CVE)',
+        'color'    => '#f85149',
+        'icon'     => '🧨',
+        'severity' => 1,
+        'patterns' => [],   // alimenté par les signatures CVE (includes/cve.php), pas par regex ici
+    ],
 
     // ── Authentification ─────────────────────────────────────
     'auth_fail' => [
@@ -23,6 +33,9 @@ const SEC_EVENTS = [
             '/Kerberos pre-authentication failed/i',
             '/pam_unix.*auth.*failure/i',
             '/Authorization failure/i',
+            '/failed to (log|sign)\s?in/i', // Synology DSM (Connection: User [..] failed to sign in to [..])
+            '/login failed/i',              // NAS / équipements réseau divers
+            '/authentication failed/i',
         ],
     ],
 
@@ -37,6 +50,7 @@ const SEC_EVENTS = [
             '/Successful logon/i',
             '/EventID: 4624/i',
             '/User logged in/i',
+            '/signed in to/i',              // Synology DSM (User [..] signed in to [..] successfully)
             '/pam_unix.*session.*opened/i',
         ],
     ],
@@ -235,16 +249,50 @@ const SEC_EVENTS = [
     ],
 ];
 
+// Borne défensive contre le ReDoS sur l'ensemble des regex de détection.
+@ini_set('pcre.backtrack_limit', '200000');
+
+// Règles de classification apprises (table parse_rules), validées par un humain.
+// Cache process avec TTL court : le démon long-running récupère les nouvelles
+// règles sans redémarrage. Tolérant aux pannes : renvoie [] en cas d'erreur DB.
+function active_parse_rules(): array {
+    static $cache = null;
+    static $loadedAt = 0;
+    $now = time();
+    if ($cache === null || ($now - $loadedAt) > 30) {
+        try {
+            $cache = db()->query(
+                "SELECT program_match, pattern, sec_event FROM parse_rules WHERE enabled = 1"
+            )->fetchAll();
+        } catch (\Throwable $e) {
+            $cache = $cache ?? [];      // garde l'ancien cache si dispo, sinon vide
+        }
+        $loadedAt = $now;
+    }
+    return $cache;
+}
+
 function detect_sec_event(string $message, string $program = ''): ?array {
     $text = $program . ' ' . $message;
+
+    // 1) Motifs codés en dur — prioritaires (référence stable).
     foreach (SEC_EVENTS as $key => $def) {
         foreach ($def['patterns'] as $pattern) {
             if (preg_match($pattern, $text)) {
-                return [
-                    'event'    => $key,
-                    'severity' => $def['severity'],
-                ];
+                return ['event' => $key, 'severity' => $def['severity']];
             }
+        }
+    }
+
+    // 2) Règles apprises (additives). Restreintes à une clé SEC_EVENTS connue ;
+    //    chaque regex est encadrée pour qu'une règle fautive n'impacte rien.
+    foreach (active_parse_rules() as $r) {
+        $pm = $r['program_match'] ?? '';
+        if ($pm !== '' && stripos($program, $pm) === false) continue;
+        if (!isset(SEC_EVENTS[$r['sec_event']])) continue;
+        $ok = @preg_match('/' . $r['pattern'] . '/i', $message);   // pattern déjà échappé pour le délimiteur /
+        if ($ok === 1) {
+            return ['event' => $r['sec_event'], 'severity' => SEC_EVENTS[$r['sec_event']]['severity'] ?? null];
         }
     }
     return null;
