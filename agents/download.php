@@ -185,13 +185,38 @@ if ($os === 'linux') {
 // ─────────────────────────────────────────────────────────────
 function build_linux(string $url, string $key, array $sel, array $catalog): string
 {
-    $paths = [];
+    // Sélecteurs journald par source, pour les systèmes journald-only (Debian 13,
+    // Ubuntu récent, RHEL) où les fichiers /var/log/* n'existent pas. Chaque jeton
+    // est un match « CHAMP=VALEUR » ; ils seront OR-combinés (séparateur « + »).
+    $JOURNALD = [
+        'auth_log'   => ['SYSLOG_FACILITY=10', 'SYSLOG_FACILITY=4'],   // authpriv + auth (sshd, sudo, su, PAM)
+        'secure'     => ['SYSLOG_FACILITY=10', 'SYSLOG_FACILITY=4'],
+        'fail2ban'   => ['SYSLOG_IDENTIFIER=fail2ban'],
+        'cron'       => ['SYSLOG_IDENTIFIER=CRON', '_COMM=cron', '_COMM=crond'],
+        'cron_log'   => ['SYSLOG_IDENTIFIER=CRON', '_COMM=cron', '_COMM=crond'],
+        'kern_log'   => ['_TRANSPORT=kernel'],
+        'daemon_log' => ['SYSLOG_FACILITY=3'],
+        'sssd'       => ['SYSLOG_IDENTIFIER=sssd', '_SYSTEMD_UNIT=sssd.service'],
+        'nginx_err'  => ['_SYSTEMD_UNIT=nginx.service'],
+        'nginx_acc'  => ['_SYSTEMD_UNIT=nginx.service'],
+        'apache_err' => ['_SYSTEMD_UNIT=apache2.service'],
+        'apache_acc' => ['_SYSTEMD_UNIT=apache2.service'],
+        'httpd_err'  => ['_SYSTEMD_UNIT=httpd.service'],
+        'httpd_acc'  => ['_SYSTEMD_UNIT=httpd.service'],
+        'mysql_err'  => ['_SYSTEMD_UNIT=mariadb.service', '_SYSTEMD_UNIT=mysql.service'],
+        'pgsql'      => ['_SYSTEMD_UNIT=postgresql.service'],
+    ];
+
+    // Spécifications passées à l'installeur : "clé|chemin|jtok1,jtok2"
+    $specs = [];
     foreach ($sel as $k) {
-        if (isset($catalog[$k])) $paths[] = $catalog[$k];
+        if (!isset($catalog[$k])) continue;
+        $specs[] = $k . '|' . $catalog[$k] . '|' . implode(',', $JOURNALD[$k] ?? []);
     }
-    $paths      = array_unique($paths);
-    $candidates = implode(' ', $paths);
-    $src_label  = count($paths) . ' sources : ' . implode(', ', array_slice($paths, 0, 5)) . (count($paths) > 5 ? '…' : '');
+    $specs_bash = implode(' ', array_map(fn($x) => '"' . $x . '"', $specs));
+
+    $paths     = array_values(array_unique(array_map(fn($k) => $catalog[$k], array_filter($sel, fn($k) => isset($catalog[$k])))));
+    $src_label = count($paths) . ' sources : ' . implode(', ', array_slice($paths, 0, 5)) . (count($paths) > 5 ? '…' : '');
 
     $tpl = <<<'BASH'
 #!/usr/bin/env bash
@@ -211,12 +236,40 @@ echo " LogFlow Agent — Linux"
 echo " __SRC_LABEL__"
 echo "========================================"
 
+# Chaque source : "clé|chemin_fichier|jtok1,jtok2"  (jtok = sélecteur journald)
+SPECS=(__SPECS__)
+
+HAS_JOURNAL=0
+if command -v journalctl >/dev/null 2>&1 && journalctl -n 0 >/dev/null 2>&1; then
+    HAS_JOURNAL=1
+fi
+
 LOG_FILES=()
-for f in __CANDIDATES__; do
-    [ -f "$f" ] && [ -r "$f" ] && { LOG_FILES+=("$f"); echo "  [OK] $f"; }
+JTOKENS=()
+for spec in "${SPECS[@]}"; do
+    key="${spec%%|*}"; rest="${spec#*|}"; path="${rest%%|*}"; jt="${rest#*|}"
+    if [ -f "$path" ] && [ -r "$path" ]; then
+        LOG_FILES+=("$path"); echo "  [OK fichier]  $path"
+    elif [ "$HAS_JOURNAL" = 1 ] && [ -n "$jt" ]; then
+        IFS=',' read -ra _toks <<< "$jt"; JTOKENS+=("${_toks[@]}")
+        echo "  [OK journald] $key  ($path absent → journald)"
+    else
+        echo "  [SKIP]        $path  (absent)"
+    fi
 done
-[ ${#LOG_FILES[@]} -eq 0 ] && { echo "Aucun fichier lisible trouvé." >&2; exit 1; }
+
+if [ ${#LOG_FILES[@]} -eq 0 ] && [ ${#JTOKENS[@]} -eq 0 ]; then
+    echo "Aucune source disponible (ni fichier, ni journald)." >&2; exit 1
+fi
 echo ""
+
+# Dédup des sélecteurs journald + assemblage (OR journalctl = jeton « + »)
+JSTR=""
+if [ ${#JTOKENS[@]} -gt 0 ]; then
+    declare -A _seen; U=()
+    for t in "${JTOKENS[@]}"; do [ -n "${_seen[$t]:-}" ] || { U+=("$t"); _seen[$t]=1; }; done
+    for i in "${!U[@]}"; do [ "$i" -gt 0 ] && JSTR="$JSTR +"; JSTR="$JSTR ${U[$i]}"; done
+fi
 
 cat > "$AGENT_BIN" << 'AGENT'
 #!/usr/bin/env bash
@@ -248,10 +301,22 @@ parse() {
 }
 
 FILES=(__FILES__)
-EX=(); for f in "${FILES[@]}"; do [ -r "$f" ] && EX+=("$f"); done
-[ ${#EX[@]} -eq 0 ] && { echo "Aucun log lisible" >&2; exit 1; }
+JOURNAL_ARGS=(__JOURNAL__)
 
-tail -Fq -n 0 "${EX[@]}" 2>/dev/null | while IFS= read -r line; do parse "$line"; flush; done
+EX=(); for f in "${FILES[@]}"; do [ -r "$f" ] && EX+=("$f"); done
+
+tail_files()   { tail -Fq -n 0 "${EX[@]}" 2>/dev/null | while IFS= read -r line; do parse "$line"; flush; done; }
+tail_journal() { journalctl -f -n 0 -o short --no-pager "${JOURNAL_ARGS[@]}" 2>/dev/null | while IFS= read -r line; do parse "$line"; flush; done; }
+
+PIDS=()
+[ ${#EX[@]} -gt 0 ]           && { tail_files   & PIDS+=($!); }
+[ ${#JOURNAL_ARGS[@]} -gt 0 ] && { tail_journal & PIDS+=($!); }
+[ ${#PIDS[@]} -eq 0 ] && { echo "Aucune source à surveiller" >&2; exit 1; }
+
+# Si un flux s'arrête, on quitte (systemd relance l'agent).
+trap 'kill "${PIDS[@]}" 2>/dev/null' EXIT
+wait -n 2>/dev/null || wait
+exit 1
 AGENT
 
 chmod +x "$AGENT_BIN"
@@ -259,6 +324,7 @@ sed -i "s|__RECEIVE_URL__|$LOGFLOW_URL|g"  "$AGENT_BIN"
 sed -i "s|__API_KEY__|$API_KEY|g"          "$AGENT_BIN"
 STR=""; for f in "${LOG_FILES[@]}"; do STR="$STR \"$f\""; done
 sed -i "s|__FILES__|${STR}|g"              "$AGENT_BIN"
+sed -i "s|__JOURNAL__|${JSTR}|g"           "$AGENT_BIN"
 
 cat > "$SERVICE_FILE" << 'SVC'
 [Unit]
@@ -285,8 +351,8 @@ echo "Done ! journalctl -u logflow-agent -f"
 BASH;
 
     return str_replace(
-        ['__URL_BASE__', '__RECEIVE_URL__', '__API_KEY__', '__SRC_LABEL__', '__CANDIDATES__'],
-        [$url, $url . '/api/receive.php', $key, $src_label, $candidates],
+        ['__URL_BASE__', '__RECEIVE_URL__', '__API_KEY__', '__SRC_LABEL__', '__SPECS__'],
+        [$url, $url . '/api/receive.php', $key, $src_label, $specs_bash],
         $tpl
     );
 }
