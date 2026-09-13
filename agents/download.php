@@ -339,7 +339,12 @@ RestartSec=10
 WantedBy=multi-user.target
 SVC
 
-systemctl daemon-reload && systemctl enable --now logflow-agent
+# enable (démarrage auto) puis restart : « enable --now » ne redémarre PAS un
+# service déjà actif → sur une réinstall, l'ancien processus continuerait à
+# tourner avec l'ancien code. Le restart force le chargement du binaire à jour.
+systemctl daemon-reload
+systemctl enable logflow-agent >/dev/null 2>&1
+systemctl restart logflow-agent
 echo "Service démarré."
 
 R=$(curl -sf -X POST "$LOGFLOW_URL" -H "X-Api-Key: $API_KEY" -H "Content-Type: application/json" \
