@@ -10,6 +10,8 @@ services:
       MARIADB_DATABASE: ${DB_NAME:-logflow}
       MARIADB_USER: ${DB_USER:-logflow}
       MARIADB_PASSWORD: ${DB_PASS:-change_me_logflow}
+      # Fuseau horaire de la base (NOW() sur les logs). Défaut UTC.
+      TZ: ${TZ:-UTC}
     volumes:
       - db_data:/var/lib/mysql
       # Schéma chargé à la première création du volume, puis le jeu de démo
@@ -40,6 +42,9 @@ services:
       SYSLOG_PROTO: both
       # Données de démo : 1 = dashboard pré-peuplé (défaut) ; 0 = install à vide.
       DEMO_DATA: ${DEMO_DATA:-1}
+      # Fuseau horaire de l'app (affichage). Doit correspondre à celui de la base.
+      # Défaut UTC ; ex. TZ=Europe/Paris pour une heure locale sans décalage.
+      TZ: ${TZ:-UTC}
     ports:
       - "${APP_PORT:-8085}:80"
       # Récepteur syslog (Synology/NAS). Pointez le Log Center du NAS sur ce port.

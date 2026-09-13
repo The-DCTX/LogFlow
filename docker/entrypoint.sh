@@ -7,6 +7,11 @@ if [ ! -f /var/www/html/config.php ]; then
     chown www-data:www-data /var/www/html/config.php
 fi
 
+# Aligne le fuseau horaire de PHP sur $TZ (défaut UTC) pour que l'affichage
+# des logs corresponde à NOW() de la base (elle aussi calée sur $TZ). Écrit à
+# chaque démarrage → s'applique aussi aux instances mises à jour (redeploy).
+echo "date.timezone=${TZ:-UTC}" > /usr/local/etc/php/conf.d/zz-logflow-timezone.ini
+
 # Attend que MariaDB accepte les connexions avant de démarrer Apache
 echo "LogFlow : attente de la base de données (${DB_HOST:-db})…"
 until php -r '
