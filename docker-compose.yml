@@ -38,6 +38,8 @@ services:
       DB_PASS: ${DB_PASS:-change_me_logflow}
       SERVER_URL: ${SERVER_URL:-}
       SYSLOG_PROTO: both
+      # Données de démo : 1 = dashboard pré-peuplé (défaut) ; 0 = install à vide.
+      DEMO_DATA: ${DEMO_DATA:-1}
     ports:
       - "${APP_PORT:-8085}:80"
       # Récepteur syslog (Synology/NAS). Pointez le Log Center du NAS sur ce port.

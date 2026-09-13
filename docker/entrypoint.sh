@@ -26,6 +26,9 @@ php /var/www/html/migrate.php || { echo "LogFlow : migration échouée, arrêt."
 # Initialise les réglages issus de l'environnement (ex. SERVER_URL) au 1er démarrage
 php /var/www/html/docker/init-config.php || true
 
+# Purge optionnelle des données de démo (DEMO_DATA=0/false → install à vide)
+php /var/www/html/docker/init-demo.php || true
+
 # Démarre le récepteur syslog réseau (Synology/NAS & équipements) en arrière-plan.
 # Écoute UDP+TCP sur le port 1514 du conteneur (mappé via SYSLOG_PORT côté hôte).
 echo "LogFlow : démarrage du récepteur syslog…"
