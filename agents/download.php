@@ -306,7 +306,10 @@ JOURNAL_ARGS=(__JOURNAL__)
 EX=(); for f in "${FILES[@]}"; do [ -r "$f" ] && EX+=("$f"); done
 
 tail_files()   { tail -Fq -n 0 "${EX[@]}" 2>/dev/null | while IFS= read -r line; do parse "$line"; flush; done; }
-tail_journal() { journalctl -f -n 0 -o short --no-pager "${JOURNAL_ARGS[@]}" 2>/dev/null | while IFS= read -r line; do parse "$line"; flush; done; }
+# LC_ALL=C : force un horodatage en mois anglais (Sep, …) quelle que soit la
+# locale de l'hôte. Sinon « journalctl -o short » suit la locale (ex. « sept. »
+# en FR) et parse() ne reconnaît plus programme/pid (tout finit dans message).
+tail_journal() { LC_ALL=C journalctl -f -n 0 -o short --no-pager "${JOURNAL_ARGS[@]}" 2>/dev/null | while IFS= read -r line; do parse "$line"; flush; done; }
 
 PIDS=()
 [ ${#EX[@]} -gt 0 ]           && { tail_files   & PIDS+=($!); }
